@@ -1,0 +1,120 @@
+////////------------chargementement de bibliotheque --------------/////////
+load "ffrandom"
+/////////////////--------------initialisation de la vecteur aleatoire----------////////////
+srandomdev();
+func real ObjectiveFunction(real [int] x){ //return x'*x;}
+ // return (x(0)-1)^2+(x(1)-2)^2+(x(2)-3)^2;}
+return (418.9828*3.-(x(0)*sin(sqrt(abs(x(0))))+x(1)*sin(sqrt(abs(x(1))))+x(2)*sin(sqrt(abs(x(2))))));}
+//return x'*x-0.1*(cos(5*pi*x(0))+cos(5*pi*x(1))+cos(5*pi*x(2))); }
+////////////////// les parametre des PSO ////////////////
+int  MaxIt=100;                // Le nombre maximum des iteration
+int  Npop=100;                 // Nombre total de la population
+int  Nvar=3;                  // Number of decision variables
+real VarMax=500.;               // La borne max de [a,b]
+real VarMin=-VarMax;               // La borne min de [a,b]
+real Vmax=0;
+real Vmin=-Vmax;
+real Cinertie=0.9;            // le coefficient d'inertie
+real Wmax=0.9;
+real Wmin=0.4;
+real damping=0.9;             //  amortissment de poid
+real C1=1.49445;                    // Coefficient de l'accelearation personale
+real C2=1.49445;                    // Coefficient de l'accelearation social
+real Cmax=2.5;
+real Cmin=0.5;
+/*
+real phi=0,phi1=3.,phi2=2,Chi=0.,kappa=0.9;
+phi=phi1+phi2;
+Chi=2.*kappa/abs(2-phi-sqrt(phi^2-4.*phi));
+Cinertie=Chi;
+C1=Chi*phi1;
+C2=Chi*phi2;
+*/
+// Initialisation
+real [int,int ] ParticlePosition(Npop,Nvar);      // position
+real [int,int ] ParticleVelocity(Npop,Nvar);      // velocité
+real [int ,int] ParticleBestPosition(Npop,Nvar);  // la meilleure position
+real [int]      ParticleBestCost(Npop);           // le meilleur cout
+real [int ,int] GlobalBestPosition(1,Nvar);       // le meilleur Position
+real [int]      ParticleCost(Npop);               // fonction de cout
+
+// Initialisation de Global Best
+real GlobalBestCost=1e+10;
+// Initialisation de la population (Swarms)
+for (int i=0; i<Npop ;i++)
+      {
+         for(int j=0;j<Nvar;j++) {
+             ParticlePosition(i,j)=(VarMax-VarMin)*randreal1()+VarMin; 
+             ParticleVelocity(i,j)=(Vmax-Vmin)*randreal1()+Vmin;
+                                 }
+         ParticleCost(i)=ObjectiveFunction(ParticlePosition(i,:));
+         // mise à jour de la meilleur position
+         ParticleBestPosition(i,:)=ParticlePosition(i,:);
+         // mise à jour de la meilleur position
+         ParticleBestCost(i)=ParticleCost(i);
+         // mise à jour de G_Best;
+           if (ParticleBestCost(i)<GlobalBestCost)
+                {    
+                   GlobalBestCost=ParticleBestCost(i);
+                   GlobalBestPosition(0,:)=ParticleBestPosition(i,:);
+                }
+
+     }
+
+// les meilleurs couts
+real [int,int ] BestCosts(MaxIt,1);
+real [int,int ] BestPosition(MaxIt,Nvar);
+real [int,int ] SL(3,Nvar);
+ParticleVelocity=0;
+// Main Loop
+ for (int it=0; it<MaxIt ; it++)
+    {
+
+cout<<"********         Iteration      **********        Numero "<<it<<"**********"<<endl;
+
+    
+           //    C1=(Cmax-Cmin)*(MaxIt-it)/MaxIt+Cmin;
+            //   cout<<"C1 = "<< C1<<endl;
+             //  C2=(Cmax-Cmin)*it/MaxIt+Cmin;
+             //  cout<<"C2 = "<< C2<<endl;
+            //   Cinertie=Wmax-(Wmax-Wmin)*it/MaxIt;
+              // cout<<"w = "<< Cinertie<<endl;
+    for (int i=0;i<Npop;i++)
+       
+         {      
+
+             for(int j=0;j<Nvar;j++)
+                                   {             
+
+                       ParticleVelocity(i,j) = Cinertie*ParticleVelocity(i,j)
+                                              + C1*randreal1()*(ParticleBestPosition(i,j)- ParticlePosition(i,j)) 
+                                              + C2*randreal1()*(GlobalBestPosition(0,j)  - ParticlePosition(i,j) );
+                       ParticlePosition(i,j)=ParticlePosition(i,j)+ ParticleVelocity(i,j);
+                       ParticlePosition(i,j)=max(ParticlePosition(i,j),VarMin);
+                       ParticlePosition(i,j)=min(ParticlePosition(i,j),VarMax);
+
+                                   }
+        ParticleCost(i)=ObjectiveFunction(ParticlePosition(i,:));
+     //   cout<<"ParticleCost =  "<<ParticleCost<<endl;
+       				 if (ParticleCost(i)< ParticleBestCost(i))
+                {
+                    ParticleBestPosition(i,0:(Nvar-1))=ParticlePosition(i,0:(Nvar-1));
+                    ParticleBestCost(i)=ParticleCost(i);
+                 
+                     if (ParticleBestCost(i)<GlobalBestCost)
+                         {    
+                            GlobalBestCost=ParticleBestCost(i);
+                            GlobalBestPosition(0,:)=ParticleBestPosition(i,:);
+                         }
+                  }
+            }
+       
+       
+   //   Memorisation des couts
+       BestCosts(it,0)=GlobalBestCost;
+       BestPosition(it,:)=GlobalBestPosition(0,:);
+  //   coffecient Amortissment d'inertie
+       Cinertie=Cinertie*damping;
+    }
+cout<<"BestCosts    = "<<BestCosts<<endl;
+cout<<"BestPosition = "<<BestPosition<<endl;
