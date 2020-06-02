@@ -1,0 +1,229 @@
+load "ffrandom"
+load "lapack"
+srandomdev();
+                   //////////////// ObjectiveFunction //////////////////
+func real ObjectiveFunction(real [int] x){ //return x'*x;}
+ // return (x(0)-1)^2+(x(1)-2)^2+(x(2)-3)^2;}
+return (418.9828*3.-(x(0)*sin(sqrt(abs(x(0))))+x(1)*sin(sqrt(abs(x(1))))+x(2)*sin(sqrt(abs(x(2))))));}
+//x'*x-0.1*(cos(5*pi*x(0))+cos(5*pi*x(1))+cos(5*pi*x(2)));  }
+//Time
+real cpu;
+///////////////////////////  Les parameters  des Algorithmes Génétiques  ////////////////////////////
+
+int  Dim=3;                   					// Le nombre des Variables
+real Ub=500;               						// La borne max de [a,b]
+real Lb=-500;              						// La borne min de [a,b]
+
+int  MaxGen=100;                			    // Le nombre des iterations(Generation)
+int  PopSize=100;              					// La taille de Population  
+real [int] CostFunction(PopSize);       		// Tableau pour Stocker les valeur de la fonction objective
+real [int,int] Parent(PopSize,Dim);     
+
+                       /////////////// Parameters of Crosover /////////////
+
+real Pc=0.8; 		         	        		// Probabilte  de croisement
+real Pcc=0.6;       		     	    		// Taux de croisement
+int  Nc=2*floor(PopSize*Pcc*0.5);     		    // Nombre totat des individus pour le croisements
+real gamma=0.4;              					// Extra Range Factor for Crossover
+real [int]     CostFunctionCrosover(Nc);  
+real [int,int] OffspringCrosover(Nc,Dim);
+                     ///////////////  Function Crosover /////////////////
+func real [int, int ] Crossover(real [int] x1 , real [int] x2,real VarMin,real VarMax) 
+                     {
+    real [int] alpha(Dim);
+    real [int,int] Childe(2,Dim);
+    for(int i=0;i<Dim;i++) alpha(i)=randreal1();
+    for(int i=0;i<Dim;i++){
+                             Childe(0,i)=alpha(i)*x1(i)+(1-alpha(i))*x2(i);
+                             Childe(0,i)=max(Childe(0,i),VarMin); Childe(0,i)=min(Childe(0,i),VarMax);
+                             Childe(1,i)=alpha(i)*x2(i)+(1-alpha(i))*x1(i); 
+                             Childe(1,i)=max(Childe(1,i),VarMin);Childe(1,i)=min(Childe(1,i),VarMax);
+                        }
+                            return Childe;
+                      }
+
+                    /////////////// Parameters of Mutation /////////////
+
+real Pm=0.3;	     		            		// Probabilte de Mutation
+real Pmm=0.4;   	         		    		// Taux des Mutations
+int Nm=floor(Pmm*Nc);        					// Le nomber des Mutantions  
+real [int] CostFunctionMutation(Nm);  
+real [int,int] OffspringMutation(Nm,Dim);
+                     ///////////////  Function Mutation 1 (Power Mutation) /////////////////
+func real [int] Mutation(real [int] &x1,real VarMin,real VarMax,real Dimm) 
+                     {
+    real  t;
+    real s=0;
+    for(int i=0;i<Dimm;i++){ 
+                           t=(x1(i)-VarMin)/(VarMax-VarMin);
+                          if(t<randreal1()) x1(i)=x1(i)-randreal1()*(x1(i)-VarMin);
+                          else x1(i)=x1(i)+randreal1()*(VarMax-x1(i));
+                          x1(i)=max(x1(i),VarMin);x1(i)=min(x1(i),VarMax);
+                          }
+//cout<<"apres x1= "<<x1<<endl;
+                            return x1;
+                      }
+func real [int] MutationNonUniform(real [int] &x1,int Kth,int pop,real VarMin,real VarMax,real b) 
+                     {
+    int  t=((randreal1()*10)%2);
+    for(int i=0;i<Dim;i++){ 
+                          if(t=0) x1(i) = x1(i)+(VarMax-x1(i))*(1-randreal1()^(1-((Kth/pop)^b)));
+                          else    x1(i) = x1(i)-(x1(i)-VarMin)*(1-randreal1()^(1-((Kth/pop)^b)));
+                          x1(i)=max(x1(i),VarMin);x1(i)=min(x1(i),VarMax);
+                          }
+                            return x1;
+                      }
+                   
+
+                   /////////////// Initialization /////////////////////
+
+for(int i=0;i<PopSize;i++)
+    {        
+  for(int j=0;j<Dim;j++)
+       {
+         Parent(i,j)=randreal1()*(Ub-Lb)+Lb; // Initialisations des Positions aléatoirment
+       }
+       CostFunction(i)=ObjectiveFunction(Parent(i,:));  // Evaluation de la fonction objective
+    }
+//cout<<" Parent = "<<Parent<<endl;
+//cout<<" CostFunction = "<<CostFunction<<endl;
+
+				 //////// trier la population suivant leurs fonction objective //////////
+
+int [int] IndexsSort(PopSize);  
+IndexsSort(0:PopSize-1)=(0:PopSize-1);
+sort(CostFunction,IndexsSort);
+real [int,int] temp(PopSize,Dim);
+for(int i=0;i<PopSize;i++){  temp(i,:)=Parent(IndexsSort(i),:);  }
+Parent=temp;
+//cout<<" CostFunction = "<<CostFunction<<" Position = "<<IndexsSort<<endl;
+//cout<<" Parent = "<<Parent<<endl;
+
+              ////////// sauvgarder les resultats  ///////////////
+real [int,int] BestSol(MaxGen,Dim); 
+real [int,int] BestCost(MaxGen,1);
+
+int i1,i2;
+real alpha;
+int km=0,kc=0,p=0;
+real [int,int] E(2,Dim);
+cout<<"Nombre des paranets selectione pour le croisement Nc = "<<Nc<<endl;
+cout<<"Nombre des enfants selection/e pour la Mutation  Nm = "<<Nm<<endl;
+
+                 /////////////////:::: Type Of Selection:::::: ////////////////
+
+int SizeTour=floor(0.7*PopSize);
+             /// ****Type 1*****///
+func int TournamentSelection(real [int] ObjectiveFunction,int Np,int SizeTournament)
+{
+    real [int] Cost(SizeTournament);   int  [int] S(SizeTournament);    int index=0;
+    for(int i=0;i<SizeTournament;i++){ S(i)=floor(randreal1()*(Np));    Cost(i)=ObjectiveFunction(S(i)) ;}
+    index=S(Cost.imin);   return index ;
+}
+
+func int RouletteWheelSelection( int inputlen,real [int] Obje)
+{
+	//find the probability sum
+    real [int]randominputs(inputlen);
+    real ptotal = 0;
+//	for (int i = 0; i < inputlen; ++i) { randominputs(i)=randreal1(); }
+//	for (int i = 0; i < inputlen; ++i) { ptotal+=randominputs(i)    ; }
+    for (int i = 0; i < inputlen; ++i) { ptotal+=Obje(i)    ; }
+//	cout<<"Total prob: "<< ptotal<<endl;
+    real rouletteval=randreal1()*(ptotal-1)+1;
+	//cout<<"Roulette_val: "<<rouletteval<<endl;
+	int rouletteindex = 0;
+	while(rouletteval >=0 && rouletteindex<= inputlen ) //second part shouldn't really be necessary...
+	{
+	//	cout<<"roulette Val = "<<rouletteval<<endl;;
+		//subtract the probability rejected
+		rouletteval = rouletteval-Obje(rouletteindex);
+		//move on to next value
+		rouletteindex++;
+	}
+	//decrement because of the ++ in the while loop
+	rouletteindex--;
+	return rouletteindex;
+}
+for(int Gen=0;Gen<MaxGen;Gen++)
+    {////////// Début 1///////////
+cout<<"*********************** Generation ********************  "<<Gen+1<<endl;
+CostFunctionMutation=0;   OffspringMutation=0; km=0;
+CostFunctionCrosover=0;   OffspringCrosover=0;kc=0;
+            ////////////////// Etape de Croisement ///////////////////
+   for(int Enfant=0;Enfant<Nc/2;Enfant++)
+              {////////// Début 2///////////
+
+                       // Select P1 and P2  for crosover// 
+                         i1=floor( randreal1()*(Nc-1) );
+                         i2=floor(randreal1()*(Nc))+1;
+
+                       // i1=TournamentSelection(CostFunction,PopSize,SizeTour);
+                       // i2=TournamentSelection(CostFunction,PopSize,SizeTour);
+
+                       // i1=RouletteWheelSelection(PopSize,CostFunction);
+                       // i2=RouletteWheelSelection(PopSize,CostFunction);
+
+                        // cout<<"i1 = "<<i1<<" Parent "<< Parent(i1,:)<<endl;
+                        // cout<<"i2 = "<<i2<<" Parent "<< Parent(i2,:)<<endl;
+                              
+                        if(randreal1()<Pc) { 
+                                               
+                                          E=Crossover(Parent(i1,:),Parent(i2,:),Lb,Ub);
+                                          OffspringCrosover(2*kc,:)=E(0,:) ;
+                                          OffspringCrosover(2*kc+1,:)=E(1,:);
+                             CostFunctionCrosover(2*kc)  = ObjectiveFunction(OffspringCrosover(2*kc,:));
+                             CostFunctionCrosover(2*kc+1)= ObjectiveFunction(OffspringCrosover(2*kc+1,:));
+                                              kc++;
+                                             }
+
+              }////////// Fin 2///////////
+
+
+             //////////////// Etape de Mutation///////////
+
+for (int m =0;m<Nm;m++) {////////Début 3////////
+                   if(randreal1()<Pm){
+                                    p=floor((2*kc-1)*randreal1())+1;  
+                                    OffspringMutation(km,:)= Mutation(OffspringCrosover(p,:),Lb,Ub,Dim);
+                                   // OffspringMutation(km,:)= MutationNonUniform(OffspringCrosover(p,:),Gen,MaxGen,Lb,Ub,0.2);
+                                    CostFunctionMutation(km)=ObjectiveFunction(OffspringMutation(km,:)); 
+                                    km++;
+                                    }
+
+                         } //////// Fin 3/////////
+
+              //////////////////////////// Traitement des données /////////////////////////
+
+//PopSize=PopSize+km+2*kc;
+int PopSizeGlobal=PopSize+2*kc+km;
+int [int] IndexsSortGlobal(PopSizeGlobal);
+real [int,int] OffspringGlobal(PopSizeGlobal,Dim);
+real [int] FunctionCostGlobal(PopSizeGlobal);
+FunctionCostGlobal=0;     OffspringGlobal=0; IndexsSortGlobal(0:PopSizeGlobal-1)= (0:PopSizeGlobal-1);
+                               //// Inserer elitism /////
+
+FunctionCostGlobal(0:(PopSize-1))                        =  CostFunction(0:(PopSize-1))    ;	    	// Initial Cost
+FunctionCostGlobal(PopSize:(PopSize+2*kc-1))           =  CostFunctionCrosover(0:(2*kc-1)) ; 			// Corsover Cost
+FunctionCostGlobal((PopSize+2*kc):(PopSizeGlobal-1)) =  CostFunctionMutation(0:(km-1)) ;				// Mutation Cost
+                           ///// New Population/////
+
+for(int j=0;j<PopSize;j++) {    			       OffspringGlobal(j,:) = Parent(j,:);                       }
+for(int j=PopSize;j<PopSize+2*kc;j++) {		       OffspringGlobal(j,:) = OffspringCrosover(j-PopSize,:) ;   }
+for(int j=PopSize+2*kc;j<(PopSizeGlobal);j++) {    OffspringGlobal(j,:) = OffspringMutation(j-PopSize-2*kc,:); }
+                          ////////  Taille principale //////
+           
+sort(FunctionCostGlobal,IndexsSortGlobal);
+CostFunction(0:(PopSize-1))=FunctionCostGlobal(0:(PopSize-1));
+for(int j=0;j<PopSize;j++) { Parent(j,:) = OffspringGlobal(IndexsSortGlobal(j),:);  }
+
+BestCost(Gen,0)=CostFunction(0);
+BestSol(Gen,:)=Parent(0,:);
+    }/////////// Fin 1/////////////
+cout<<"BestCost"<<BestCost<<endl;
+cout<<"BestSol"<<BestSol<<endl;
+
+
+//CPU
+cout << " CPU = " << clock()-cpu << endl ;
+//tabcpu = clock()-cpu;
